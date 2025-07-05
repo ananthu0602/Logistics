@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Logistics Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background: #f4f4f4;
+    }
+    h1 {
+      text-align: center;
+    }
+    .container {
+      max-width: 800px;
+      margin: auto;
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+    }
+    form input, form textarea {
+      width: 100%;
+      padding: 8px;
+      margin: 6px 0;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+    }
+    label {
+      font-weight: bold;
+      display: block;
+      margin-top: 10px;
+    }
+    button {
+      background: #007BFF;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      margin-top: 10px;
+      cursor: pointer;
+      border-radius: 5px;
+    }
+    canvas {
+      margin-top: 30px;
+    }
+    #status {
+      margin-top: 10px;
+      font-weight: bold;
+      color: green;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Logistics Truck Tracker</h1>
+    <form id="truckForm">
+      <label for="vin">VIN:</label><input type="text" id="vin" name="vin" required>
+      <label for="model">Model:</label><input type="text" id="model" name="model" required>
+      <label for="year">Year:</label><input type="number" id="year" name="year" required>
+      <label for="capacity">Capacity (tons):</label><input type="number" id="capacity" name="capacity" step="0.01" required>
+      <label for="charges">Charges ($):</label><input type="number" id="charges" name="charges" step="0.01" required>
+      <label for="notes">Notes:</label><textarea id="notes" name="notes"></textarea>
+      <button type="submit">Add Truck</button>
+    </form>
+
+    <div id="status"></div>
+
+    <button onclick="downloadExcel()" style="background: green;">Download Excel</button>
+    <canvas id="capacityChart" width="400" height="200"></canvas>
+  </div>
+
+  <script>
+    let chartInstance = null;
+
+    document.getElementById("truckForm").addEventListener("submit", async function(e) {
+      e.preventDefault();
+
+      const truck = {
+        vin: document.getElementById("vin").value,
+        model: document.getElementById("model").value,
+        year: parseInt(document.getElementById("year").value),
+        capacity: parseFloat(document.getElementById("capacity").value),
+        charges: parseFloat(document.getElementById("charges").value),
+        notes: document.getElementById("notes").value
+      };
+
+      try {
+        const response = await fetch("http://127.0.0.1:5000/api/trucks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(truck)
+        });
+
+        if (response.ok) {
+          document.getElementById("status").textContent = "✅ Truck data saved successfully!";
+          this.reset();
+          loadTruckData();
+        } else {
+          document.getElementById("status").textContent = "❌ Error saving truck data.";
+        }
+      } catch (error) {
+        console.error("Error:", error);
+        document.getElementById("status").textContent = "❌ Failed to connect to the server.";
+      }
+    });
+
+    async function loadTruckData() {
+      try {
+        const res = await fetch("http://127.0.0.1:5000/api/trucks");
+        const data = await res.json();
+        updateChart(data);
+      } catch (error) {
+        console.error("Error loading truck data:", error);
+      }
+    }
+
+    function updateChart(data) {
+      const labels = data.map(t => t.model);
+      const capacities = data.map(t => t.capacity);
+
+      const ctx = document.getElementById("capacityChart").getContext("2d");
+
+      // Destroy previous chart if exists
+      if (chartInstance) chartInstance.destroy();
+
+      chartInstance = new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels: labels,
+          datasets: [{
+            label: "Capacity (tons)",
+            data: capacities,
+            backgroundColor: "rgba(54, 162, 235, 0.6)"
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { position: "top" },
+            title: { display: true, text: "Truck Capacity Overview" }
+          }
+        }
+      });
+    }
+
+    function downloadExcel() {
+      window.location.href = "http://127.0.0.1:5000/api/download";
+    }
+
+    // Load chart on page load
+    window.onload = loadTruckData;
+  </script>
+</body>
+</html>
